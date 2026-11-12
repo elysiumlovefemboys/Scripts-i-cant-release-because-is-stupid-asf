@@ -5083,6 +5083,987 @@ local Library do
         end
     end
 
+    Library.ESPPreview = function(self, Data)
+        Data = Data or { }
+
+        local Vector3New = Vector3.new
+        local CFrameNew = CFrame.new
+        local CFrameAngles = CFrame.Angles
+        local MathPi = math.pi
+        local MathAbs = math.abs
+        local MathMin = math.min
+        local MathCos = math.cos
+        local MathSin = math.sin
+        local MathTan = math.tan
+        local MathRad = math.rad
+
+        local DefaultAnimations = {
+            {"Idle", 507766666}, {"Walk", 507777826}, {"Run", 507767714}, {"Jump", 507765000},
+            {"Climb", 507765644}, {"Wave", 507770239}, {"Point", 507770453}, {"Cheer", 507770677},
+            {"Laugh", 507770818}, {"Dance 1", 507771019}, {"Dance 2", 507776043}, {"Dance 3", 507777268}
+        }
+
+        local Preview = {
+            Window = Data.Window or Data.window,
+
+            Name = Data.Name or Data.name or "ESP Preview",
+            Size = Data.Size or Data.size or Vector2New(270, 380),
+
+            Enabled = true,
+            BoxEnabled = true,
+            BoxColor = Data.BoxColor or Data.boxcolor or FromRGB(255, 255, 255),
+
+            SettingsOpen = false,
+            Loading = false,
+            Destroyed = false,
+
+            Model = nil,
+            Root = nil,
+            Animator = nil,
+            Track = nil,
+            CurrentAnimation = nil,
+            PendingAnimation = nil,
+            DefaultAnimation = DefaultAnimations[1][2],
+
+            Camera = nil,
+            Target = Vector3New(0, 0, 0),
+            TopOffset = 2.7,
+            BottomOffset = 3,
+
+            Yaw = MathPi, Pitch = 0, Distance = 10,
+            TargetYaw = MathPi, TargetPitch = 0, TargetDistance = 10,
+            DefaultDistance = 10, MinDistance = 3, MaxDistance = 25,
+
+            Dragging = false
+        }
+
+        if Data.Visible == false or Data.visible == false then
+            Preview.Enabled = false
+        end
+
+        if Data.Box == false or Data.box == false then
+            Preview.BoxEnabled = false
+        end
+
+        if Data.Animation ~= nil or Data.animation ~= nil then
+            Preview.DefaultAnimation = Data.Animation or Data.animation
+        end
+
+        local ConnectionNames = { }
+        local DrawerHeight = 144
+
+        local ScreenSize = Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize or Vector2New(1280, 720)
+        local StartPosition = Data.Position or Data.position or Vector2New(
+            ScreenSize.X - Preview.Size.X - 20,
+            ScreenSize.Y / 2 - Preview.Size.Y / 2
+        )
+
+        local Items = { } do
+            Items["Main"] = Instances:Create("Frame", {
+                Parent = Library.Holder.Instance,
+                Name = "\0",
+                Active = true,
+                Visible = Preview.Enabled,
+                Position = UDim2FromOffset(StartPosition.X, StartPosition.Y),
+                Size = UDim2FromOffset(Preview.Size.X, Preview.Size.Y),
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(20, 20, 20)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["Main"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 4)
+            })
+
+            Instances:Create("UIStroke", {
+                Parent = Items["Main"].Instance,
+                Name = "\0",
+                Color = FromRGB(35, 35, 35),
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
+
+            Items["Top"] = Instances:Create("Frame", {
+                Parent = Items["Main"].Instance,
+                Name = "\0",
+                Size = UDim2New(1, 0, 0, 28),
+                BorderColor3 = FromRGB(0, 0, 0),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(26, 26, 26)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["Top"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 4)
+            })
+
+            Instances:Create("Frame", {
+                Parent = Items["Top"].Instance,
+                Name = "\0",
+                AnchorPoint = Vector2New(0, 1),
+                Position = UDim2New(0, 0, 1, 0),
+                Size = UDim2New(1, 0, 0, 4),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(26, 26, 26)
+            })
+
+            Items["Liner"] = Instances:Create("Frame", {
+                Parent = Items["Top"].Instance,
+                Name = "\0",
+                AnchorPoint = Vector2New(0, 1),
+                Position = UDim2New(0, 0, 1, 0),
+                Size = UDim2New(1, 0, 0, 1),
+                ZIndex = 2,
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(166, 147, 243)
+            })  Items["Liner"]:AddToTheme({BackgroundColor3 = "Accent"})
+
+            Instances:Create("UIGradient", {
+                Parent = Items["Liner"].Instance,
+                Name = "\0",
+                Transparency = NumSequence{NumSequenceKeypoint(0, 0.88), NumSequenceKeypoint(0.06, 0.88), NumSequenceKeypoint(1, 0)}
+            })
+
+            Items["Title"] = Instances:Create("TextLabel", {
+                Parent = Items["Top"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                Text = Preview.Name,
+                TextColor3 = FromRGB(221, 221, 221),
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2New(0, 0.5),
+                Position = UDim2New(0, 10, 0.5, -2),
+                Size = UDim2New(0, 0, 0, 15),
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Items["Gear"] = Instances:Create("TextButton", {
+                Parent = Items["Top"].Instance,
+                Name = "\0",
+                Text = "",
+                AutoButtonColor = false,
+                AnchorPoint = Vector2New(1, 0.5),
+                Position = UDim2New(1, -6, 0.5, -1),
+                Size = UDim2New(0, 22, 0, 22),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Items["GearRing"] = Instances:Create("Frame", {
+                Parent = Items["Gear"].Instance,
+                Name = "\0",
+                AnchorPoint = Vector2New(0.5, 0.5),
+                Position = UDim2New(0.5, 0, 0.5, 0),
+                Size = UDim2New(0, 10, 0, 10),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["GearRing"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(1, 0)
+            })
+
+            Items["GearStroke"] = Instances:Create("UIStroke", {
+                Parent = Items["GearRing"].Instance,
+                Name = "\0",
+                Thickness = 2,
+                Color = FromRGB(74, 74, 74),
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
+
+            Items["GearTeeth"] = { }
+
+            for Index = 0, 7 do
+                local Angle = MathRad(Index * 45)
+
+                TableInsert(Items["GearTeeth"], Instances:Create("Frame", {
+                    Parent = Items["Gear"].Instance,
+                    Name = "\0",
+                    AnchorPoint = Vector2New(0.5, 0.5),
+                    Position = UDim2New(0.5, MathCos(Angle) * 7.5, 0.5, MathSin(Angle) * 7.5),
+                    Size = UDim2New(0, 4, 0, 3),
+                    Rotation = Index * 45,
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = FromRGB(74, 74, 74)
+                }))
+            end
+
+            Items["ViewArea"] = Instances:Create("Frame", {
+                Parent = Items["Main"].Instance,
+                Name = "\0",
+                Position = UDim2New(0, 1, 0, 29),
+                Size = UDim2New(1, -2, 1, -30),
+                ClipsDescendants = true,
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(18, 18, 18)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["ViewArea"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 4)
+            })
+
+            Items["Viewport"] = Instances:Create("ViewportFrame", {
+                Parent = Items["ViewArea"].Instance,
+                Name = "\0",
+                Size = UDim2New(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                Ambient = FromRGB(170, 170, 170),
+                LightColor = FromRGB(255, 255, 255),
+                LightDirection = Vector3New(0.3, -0.5, 0.8),
+                ZIndex = 1
+            })
+
+            Items["WorldModel"] = Instances:Create("WorldModel", {
+                Parent = Items["Viewport"].Instance,
+                Name = "\0"
+            })
+
+            Preview.Camera = InstanceNew("Camera")
+            Preview.Camera.FieldOfView = 40
+            Preview.Camera.Parent = Items["Viewport"].Instance
+            Items["Viewport"].Instance.CurrentCamera = Preview.Camera
+
+            Items["Loading"] = Instances:Create("TextLabel", {
+                Parent = Items["ViewArea"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                Text = "Loading model...",
+                TextColor3 = FromRGB(74, 74, 74),
+                TextSize = 14,
+                Size = UDim2New(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ZIndex = 2
+            })
+
+            Items["BoxHolder"] = Instances:Create("Frame", {
+                Parent = Items["ViewArea"].Instance,
+                Name = "\0",
+                BackgroundTransparency = 1,
+                Size = UDim2New(0, 0, 0, 0),
+                Visible = false,
+                ZIndex = 2,
+                BorderSizePixel = 0
+            })
+
+            Items["Box"] = Instances:Create("CanvasGroup", {
+                Parent = Items["BoxHolder"].Instance,
+                Name = "Box",
+                Size = UDim2.fromScale(1, 1),
+                BackgroundTransparency = 1,
+                GroupTransparency = Preview.BoxEnabled and 0 or 1,
+                ZIndex = 2
+            })
+
+            Items["Outline"] = Instances:Create("UIStroke", {
+                Parent = Items["Box"].Instance,
+                Name = "\0",
+                LineJoinMode = Enum.LineJoinMode.Miter,
+                Thickness = 3,
+                Color = FromRGB(0, 0, 0),
+                Transparency = Preview.BoxEnabled and 0 or 1
+            })
+
+            Items["Inline"] = Instances:Create("UIStroke", {
+                Parent = Items["Box"].Instance,
+                Name = "\0",
+                LineJoinMode = Enum.LineJoinMode.Miter,
+                BorderOffset = UDimNew(0, 1),
+                Color = Preview.BoxColor,
+                Thickness = 1,
+                ZIndex = 2,
+                Transparency = Preview.BoxEnabled and 0 or 1
+            })
+
+            Items["Catcher"] = Instances:Create("TextButton", {
+                Parent = Items["ViewArea"].Instance,
+                Name = "\0",
+                Text = "",
+                AutoButtonColor = false,
+                Size = UDim2New(1, 0, 1, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                ZIndex = 3
+            })
+
+            Items["Drawer"] = Instances:Create("Frame", {
+                Parent = Items["Main"].Instance,
+                Name = "\0",
+                Visible = false,
+                Active = true,
+                AnchorPoint = Vector2New(0, 1),
+                Position = UDim2New(0, 1, 1, -1),
+                Size = UDim2New(1, -2, 0, DrawerHeight),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(20, 20, 20)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["Drawer"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 4)
+            })
+
+            Instances:Create("Frame", {
+                Parent = Items["Drawer"].Instance,
+                Name = "\0",
+                Size = UDim2New(1, 0, 0, 1),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(35, 35, 35)
+            })
+
+            Items["List"] = Instances:Create("ScrollingFrame", {
+                Parent = Items["Drawer"].Instance,
+                Name = "\0",
+                Active = true,
+                Position = UDim2New(0, 8, 0, 9),
+                Size = UDim2New(1, -16, 0, 68),
+                CanvasSize = UDim2New(0, 0, 0, 0),
+                AutomaticCanvasSize = Enum.AutomaticSize.Y,
+                ScrollBarThickness = 2,
+                ScrollBarImageColor3 = FromRGB(60, 60, 60),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(18, 18, 18)
+            })
+
+            Instances:Create("UIStroke", {
+                Parent = Items["List"].Instance,
+                Name = "\0",
+                Color = FromRGB(35, 35, 35),
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
+
+            Instances:Create("UIListLayout", {
+                Parent = Items["List"].Instance,
+                Name = "\0",
+                SortOrder = Enum.SortOrder.LayoutOrder
+            })
+
+            Items["IdHolder"] = Instances:Create("Frame", {
+                Parent = Items["Drawer"].Instance,
+                Name = "\0",
+                Position = UDim2New(0, 8, 0, 85),
+                Size = UDim2New(1, -68, 0, 20),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(20, 20, 20)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Items["IdHolder"].Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 3)
+            })
+
+            Instances:Create("UIStroke", {
+                Parent = Items["IdHolder"].Instance,
+                Name = "\0",
+                Color = FromRGB(35, 35, 35),
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
+
+            Items["IdInput"] = Instances:Create("TextBox", {
+                Parent = Items["IdHolder"].Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                Text = "",
+                PlaceholderText = "Animation ID (catalog)",
+                PlaceholderColor3 = FromRGB(74, 74, 74),
+                TextColor3 = FromRGB(221, 221, 221),
+                TextSize = 14,
+                ClearTextOnFocus = false,
+                ClipsDescendants = true,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Position = UDim2New(0, 8, 0, 0),
+                Size = UDim2New(1, -12, 1, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Items["Row"] = Instances:Create("Frame", {
+                Parent = Items["Drawer"].Instance,
+                Name = "\0",
+                Position = UDim2New(0, 8, 0, 113),
+                Size = UDim2New(1, -16, 0, 22),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Instances:Create("UIListLayout", {
+                Parent = Items["Row"].Instance,
+                Name = "\0",
+                FillDirection = Enum.FillDirection.Horizontal,
+                Padding = UDimNew(0, 6),
+                SortOrder = Enum.SortOrder.LayoutOrder
+            })
+        end
+
+        local MakeButton = function(Parent, Text, Size, Position, Callback)
+            local Button = Instances:Create("TextButton", {
+                Parent = Parent.Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                Text = Text,
+                TextColor3 = FromRGB(221, 221, 221),
+                TextSize = 14,
+                AutoButtonColor = false,
+                Size = Size,
+                Position = Position or UDim2New(0, 0, 0, 0),
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(20, 20, 20)
+            })
+
+            Instances:Create("UICorner", {
+                Parent = Button.Instance,
+                Name = "\0",
+                CornerRadius = UDimNew(0, 3)
+            })
+
+            Instances:Create("UIStroke", {
+                Parent = Button.Instance,
+                Name = "\0",
+                Color = FromRGB(35, 35, 35),
+                ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            })
+
+            Instances:Create("UIGradient", {
+                Parent = Button.Instance,
+                Name = "\0",
+                Rotation = 90,
+                Color = RGBSequence{RGBSequenceKeypoint(0, FromRGB(255, 255, 255)), RGBSequenceKeypoint(1, FromRGB(195, 195, 195))}
+            })
+
+            Button:OnHover(function()
+                Button:Tween(nil, {BackgroundColor3 = Library:GetLighterColor(FromRGB(20, 20, 20), 1.45)})
+            end)
+
+            Button:OnHoverLeave(function()
+                Button:Tween(nil, {BackgroundColor3 = FromRGB(20, 20, 20)})
+            end)
+
+            Button:Connect("MouseButton1Down", Callback)
+
+            return Button
+        end
+
+        local Options = { }
+
+        local HighlightAnimation = function(Id)
+            for _, Option in Options do
+                Option:Toggle(Id ~= nil and tostring(Option.Id) == tostring(Id))
+            end
+        end
+
+        local AddOption = function(Name, Id)
+            local Option = {
+                Name = Name,
+                Id = Id
+            }
+
+            Option.Button = Instances:Create("TextButton", {
+                Parent = Items["List"].Instance,
+                Name = "\0",
+                Text = "",
+                AutoButtonColor = false,
+                Size = UDim2New(1, 0, 0, 22),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })
+
+            Option.Accent = Instances:Create("Frame", {
+                Parent = Option.Button.Instance,
+                Name = "\0",
+                AnchorPoint = Vector2New(0, 0.5),
+                Position = UDim2New(0, 0, 0.5, 0),
+                Size = UDim2New(0, 1, 0, 0),
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0,
+                BackgroundColor3 = FromRGB(166, 147, 243)
+            })  Option.Accent:AddToTheme({BackgroundColor3 = "Accent"})
+
+            Option.Text = Instances:Create("TextLabel", {
+                Parent = Option.Button.Instance,
+                Name = "\0",
+                FontFace = Library.Font,
+                Text = Name,
+                TextColor3 = FromRGB(74, 74, 74),
+                TextSize = 14,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2New(0, 0.5),
+                Position = UDim2New(0, 10, 0.5, -1),
+                Size = UDim2New(0, 0, 0, 15),
+                AutomaticSize = Enum.AutomaticSize.X,
+                BackgroundTransparency = 1,
+                BorderSizePixel = 0
+            })  Option.Text:AddToTheme({TextColor3 = function()
+                return FromRGB(74, 74, 74)
+            end})
+
+            function Option:Toggle(Bool)
+                Option.Active = Bool
+
+                if Bool then
+                    Option.Accent:Tween(nil, {BackgroundTransparency = 0, Size = UDim2New(0, 1, 1, 0)})
+                    Option.Text:ChangeItemTheme({TextColor3 = "Accent"})
+                    Option.Text:Tween(nil, {TextColor3 = Library.Theme.Accent})
+                else
+                    Option.Accent:Tween(nil, {BackgroundTransparency = 1, Size = UDim2New(0, 1, 0, 0)})
+                    Option.Text:ChangeItemTheme({TextColor3 = function()
+                        return FromRGB(74, 74, 74)
+                    end})
+                    Option.Text:Tween(nil, {TextColor3 = FromRGB(74, 74, 74)})
+                end
+            end
+
+            Option.Button:OnHover(function()
+                if Option.Active then return end
+                Option.Text:Tween(nil, {TextColor3 = FromRGB(126, 126, 126)})
+            end)
+
+            Option.Button:OnHoverLeave(function()
+                if Option.Active then return end
+                Option.Text:Tween(nil, {TextColor3 = FromRGB(74, 74, 74)})
+            end)
+
+            Option.Button:Connect("MouseButton1Down", function()
+                Preview:PlayAnimation(Option.Id)
+            end)
+
+            TableInsert(Options, Option)
+            return Option
+        end
+
+        local SetGearColor = function(Color)
+            Items["GearStroke"]:Tween(nil, {Color = Color})
+
+            for _, Tooth in Items["GearTeeth"] do
+                Tooth:Tween(nil, {BackgroundColor3 = Color})
+            end
+        end
+
+        function Preview:SetVisibility(Bool)
+            Preview.Enabled = Bool
+            Items["Main"].Instance.Visible = Bool and (Preview.Window == nil or Preview.Window.IsOpen)
+        end
+
+        function Preview:SetBox(Bool)
+            Preview.BoxEnabled = Bool
+
+            Items["Box"]:Tween(nil, {GroupTransparency = Bool and 0 or 1})
+            Items["Outline"]:Tween(nil, {Transparency = Bool and 0 or 1})
+            Items["Inline"]:Tween(nil, {Transparency = Bool and 0 or 1})
+
+            if Items["BoxButton"] then
+                Items["BoxButton"].Instance.Text = Bool and "Box: On" or "Box: Off"
+            end
+        end
+
+        function Preview:SetBoxColor(Color)
+            Preview.BoxColor = Color
+            Items["Inline"]:Tween(nil, {Color = Color})
+        end
+
+        function Preview:SetSettingsOpen(Bool)
+            Preview.SettingsOpen = Bool
+
+            Items["Drawer"].Instance.Visible = Bool
+            Items["ViewArea"].Instance.Size = UDim2New(1, -2, 1, Bool and -(30 + DrawerHeight) or -30)
+
+            SetGearColor(Bool and Library.Theme.Accent or FromRGB(74, 74, 74))
+        end
+
+        function Preview:ResetCamera(Instant)
+            local Delta = (MathPi - Preview.Yaw + MathPi) % (MathPi * 2) - MathPi
+
+            Preview.TargetYaw = Preview.Yaw + Delta
+            Preview.TargetPitch = 0
+            Preview.TargetDistance = Preview.DefaultDistance
+
+            if Instant then
+                Preview.Yaw = Preview.TargetYaw
+                Preview.Pitch = Preview.TargetPitch
+                Preview.Distance = Preview.TargetDistance
+            end
+        end
+
+        function Preview:AddAnimation(Name, Id)
+            return AddOption(Name, Id)
+        end
+
+        function Preview:StopAnimation()
+            if Preview.Track then
+                pcall(function()
+                    Preview.Track:Stop(0.1)
+                end)
+
+                Preview.Track = nil
+            end
+
+            Preview.CurrentAnimation = nil
+            HighlightAnimation(nil)
+        end
+
+        function Preview:PlayAnimation(Id)
+            Id = StringGSub(tostring(Id), "%D", "")
+
+            if Id == "" then
+                return false
+            end
+
+            if not Preview.Animator then
+                Preview.PendingAnimation = Id
+                return false
+            end
+
+            Preview:StopAnimation()
+
+            local Animation = InstanceNew("Animation")
+            Animation.AnimationId = "rbxassetid://" .. Id
+
+            local Success, Track = pcall(function()
+                return Preview.Animator:LoadAnimation(Animation)
+            end)
+
+            if not Success or not Track then
+                task.spawn(function()
+                    Library:Notification("Invalid animation " .. Id, 4, FromRGB(255, 0, 0))
+                end)
+
+                return false
+            end
+
+            Track.Looped = true
+            Track:Play(0.15)
+
+            Preview.Track = Track
+            Preview.CurrentAnimation = Id
+            HighlightAnimation(Id)
+
+            task.spawn(function()
+                local Start = os.clock()
+
+                while Track.Length == 0 and os.clock() - Start < 4 do
+                    task.wait(0.1)
+                end
+
+                if Track.Length == 0 and Preview.Track == Track then
+                    Preview:StopAnimation()
+                    Library:Notification("Could not load animation " .. Id, 4, FromRGB(255, 0, 0))
+                end
+            end)
+
+            return true
+        end
+
+        local BuildModel = function()
+            local Model
+
+            pcall(function()
+                local Description = Players:GetHumanoidDescriptionFromUserId(LocalPlayer.UserId)
+                Model = Players:CreateHumanoidModelFromDescription(Description, Enum.HumanoidRigType.R15)
+            end)
+
+            if not Model then
+                local Character = LocalPlayer.Character
+
+                if Character then
+                    Character.Archivable = true
+                    Model = Character:Clone()
+                end
+            end
+
+            return Model
+        end
+
+        function Preview:LoadModel()
+            if Preview.Loading or Preview.Destroyed then
+                return
+            end
+
+            Preview.Loading = true
+            Items["Loading"].Instance.Text = "Loading model..."
+            Items["Loading"].Instance.Visible = true
+
+            task.spawn(function()
+                local Model = BuildModel()
+                local Humanoid = Model and Model:FindFirstChildOfClass("Humanoid")
+                local Root = Model and Model:FindFirstChild("HumanoidRootPart")
+
+                if Preview.Destroyed or not Model or not Humanoid or not Root then
+                    if Model then
+                        Model:Destroy()
+                    end
+
+                    Preview.Loading = false
+
+                    if not Preview.Destroyed then
+                        Items["Loading"].Instance.Text = "Failed to load model"
+                    end
+
+                    return
+                end
+
+                for _, Descendant in Model:GetDescendants() do
+                    if Descendant:IsA("BaseScript") then
+                        Descendant:Destroy()
+                    end
+                end
+
+                Humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+                Humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+                Root.Anchored = true
+
+                if Preview.Model then
+                    Preview:StopAnimation()
+                    Preview.Model:Destroy()
+                    Preview.Model = nil
+                    Preview.Root = nil
+                    Preview.Animator = nil
+                end
+
+                Model.PrimaryPart = Root
+                Model.Parent = Items["WorldModel"].Instance
+                Model:PivotTo(CFrameNew(0, 0, 0))
+
+                local BoxCFrame, BoxSize = Model:GetBoundingBox()
+
+                Preview.TopOffset = BoxCFrame.Position.Y + BoxSize.Y / 2 - Root.Position.Y
+                Preview.BottomOffset = Root.Position.Y - (BoxCFrame.Position.Y - BoxSize.Y / 2)
+
+                local Height = Preview.TopOffset + Preview.BottomOffset
+
+                Preview.Target = Root.Position + Vector3New(0, (Preview.TopOffset - Preview.BottomOffset) / 2, 0)
+                Preview.DefaultDistance = (Height * 0.5 / MathTan(MathRad(Preview.Camera.FieldOfView) / 2)) * 1.45
+                Preview.MinDistance = Preview.DefaultDistance * 0.3
+                Preview.MaxDistance = Preview.DefaultDistance * 2.2
+
+                local Animator = Humanoid:FindFirstChildOfClass("Animator")
+
+                if not Animator then
+                    Animator = InstanceNew("Animator")
+                    Animator.Parent = Humanoid
+                end
+
+                Preview.Model = Model
+                Preview.Root = Root
+                Preview.Animator = Animator
+
+                Preview:ResetCamera(true)
+
+                Items["Loading"].Instance.Visible = false
+                Preview.Loading = false
+
+                local Initial = Preview.PendingAnimation or Preview.DefaultAnimation
+                Preview.PendingAnimation = nil
+
+                if Initial then
+                    Preview:PlayAnimation(Initial)
+                end
+            end)
+        end
+
+        function Preview:Destroy()
+            Preview.Destroyed = true
+            Preview:StopAnimation()
+
+            for _, Name in ConnectionNames do
+                Library:Disconnect(Name)
+            end
+
+            Items["Main"]:Clean()
+        end
+
+        local Project = function(Position, ViewSize)
+            local Cam = Preview.Camera
+            local LocalPosition = Cam.CFrame:PointToObjectSpace(Position)
+
+            if LocalPosition.Z >= -0.05 then
+                return nil
+            end
+
+            local Tan = MathTan(MathRad(Cam.FieldOfView) * 0.5)
+            local Aspect = ViewSize.X / ViewSize.Y
+
+            local X = (LocalPosition.X / -LocalPosition.Z) / (Tan * Aspect)
+            local Y = (LocalPosition.Y / -LocalPosition.Z) / Tan
+
+            return Vector2New((X * 0.5 + 0.5) * ViewSize.X, (0.5 - Y * 0.5) * ViewSize.Y)
+        end
+
+        local Connect = function(Event, Callback)
+            local Name = "ESPPreview_" .. HttpService:GenerateGUID(false)
+            TableInsert(ConnectionNames, Name)
+            Library:Connect(Event, Callback, Name)
+        end
+
+        Connect(RunService.RenderStepped, function(Delta)
+            if Preview.Destroyed then
+                return
+            end
+
+            local Show = Preview.Enabled and (Preview.Window == nil or Preview.Window.IsOpen)
+            local Main = Items["Main"].Instance
+
+            if Main.Visible ~= Show then
+                Main.Visible = Show
+            end
+
+            if not Show or not Preview.Root then
+                return
+            end
+
+            local ViewSize = Items["Viewport"].Instance.AbsoluteSize
+
+            if ViewSize.X <= 0 or ViewSize.Y <= 0 then
+                return
+            end
+
+            local Alpha = MathClamp(Delta * 14, 0, 1)
+
+            Preview.Yaw += (Preview.TargetYaw - Preview.Yaw) * Alpha
+            Preview.Pitch += (Preview.TargetPitch - Preview.Pitch) * Alpha
+            Preview.Distance += (Preview.TargetDistance - Preview.Distance) * Alpha
+
+            local Cam = Preview.Camera
+
+            Cam.CFrame = CFrameNew(Preview.Target)
+                * CFrameAngles(0, Preview.Yaw, 0)
+                * CFrameAngles(Preview.Pitch, 0, 0)
+                * CFrameNew(0, 0, Preview.Distance)
+
+            Items["Viewport"].Instance.LightDirection = (Cam.CFrame.LookVector + Vector3New(0, -0.4, 0)).Unit
+
+            local RootPosition = Preview.Root.Position
+            local TopPoint = Project(RootPosition + Vector3New(0, Preview.TopOffset, 0), ViewSize)
+            local BottomPoint = Project(RootPosition - Vector3New(0, Preview.BottomOffset, 0), ViewSize)
+
+            local BoxHolder = Items["BoxHolder"].Instance
+
+            if TopPoint and BottomPoint then
+                local Height = MathAbs(BottomPoint.Y - TopPoint.Y)
+                local Width = Height * 0.6
+                local CenterX = (TopPoint.X + BottomPoint.X) / 2
+
+                BoxHolder.Position = UDim2FromOffset(MathFloor(CenterX - Width / 2 + 0.5), MathFloor(MathMin(TopPoint.Y, BottomPoint.Y) + 0.5))
+                BoxHolder.Size = UDim2FromOffset(MathFloor(Width + 0.5), MathFloor(Height + 0.5))
+                BoxHolder.Visible = true
+            else
+                BoxHolder.Visible = false
+            end
+        end)
+
+        Items["Catcher"]:Connect("InputBegan", function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                Preview.Dragging = true
+            end
+        end)
+
+        Items["Catcher"]:Connect("InputChanged", function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseWheel then
+                Preview.TargetDistance = MathClamp(
+                    Preview.TargetDistance * (1 - Input.Position.Z * 0.12),
+                    Preview.MinDistance,
+                    Preview.MaxDistance
+                )
+            end
+        end)
+
+        local WindowDrag
+
+        Items["Top"]:Connect("InputBegan", function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                local Position = Items["Main"].Instance.Position
+
+                WindowDrag = {
+                    Start = Input.Position,
+                    X = Position.X.Offset,
+                    Y = Position.Y.Offset
+                }
+            end
+        end)
+
+        Connect(UserInputService.InputChanged, function(Input)
+            if Input.UserInputType ~= Enum.UserInputType.MouseMovement and Input.UserInputType ~= Enum.UserInputType.Touch then
+                return
+            end
+
+            if Preview.Dragging then
+                Preview.TargetYaw -= Input.Delta.X * 0.012
+                Preview.TargetPitch = MathClamp(Preview.TargetPitch - Input.Delta.Y * 0.008, -1.2, 0.6)
+            elseif WindowDrag then
+                local Main = Items["Main"].Instance
+                local Screen = Library.Holder.Instance.AbsoluteSize
+
+                local NewX = MathClamp(WindowDrag.X + (Input.Position.X - WindowDrag.Start.X), 0, Screen.X - Main.AbsoluteSize.X)
+                local NewY = MathClamp(WindowDrag.Y + (Input.Position.Y - WindowDrag.Start.Y), 0, Screen.Y - Main.AbsoluteSize.Y)
+
+                Main.Position = UDim2FromOffset(NewX, NewY)
+            end
+        end)
+
+        Connect(UserInputService.InputEnded, function(Input)
+            if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
+                Preview.Dragging = false
+                WindowDrag = nil
+            end
+        end)
+
+        Items["Gear"]:Connect("MouseButton1Down", function()
+            Preview:SetSettingsOpen(not Preview.SettingsOpen)
+        end)
+
+        Items["Gear"]:OnHover(function()
+            if Preview.SettingsOpen then return end
+            SetGearColor(FromRGB(145, 145, 145))
+        end)
+
+        Items["Gear"]:OnHoverLeave(function()
+            if Preview.SettingsOpen then return end
+            SetGearColor(FromRGB(74, 74, 74))
+        end)
+
+        Items["PlayButton"] = MakeButton(Items["Drawer"], "Play", UDim2New(0, 46, 0, 20), UDim2New(1, -8, 0, 85), function()
+            Preview:PlayAnimation(Items["IdInput"].Instance.Text)
+        end)
+        Items["PlayButton"].Instance.AnchorPoint = Vector2New(1, 0)
+
+        Items["IdInput"]:Connect("FocusLost", function(Enter)
+            if Enter then
+                Preview:PlayAnimation(Items["IdInput"].Instance.Text)
+            end
+        end)
+
+        Items["BoxButton"] = MakeButton(Items["Row"], Preview.BoxEnabled and "Box: On" or "Box: Off", UDim2New(1 / 3, -4, 1, 0), nil, function()
+            Preview:SetBox(not Preview.BoxEnabled)
+        end)
+
+        Items["ResetButton"] = MakeButton(Items["Row"], "Reset cam", UDim2New(1 / 3, -4, 1, 0), nil, function()
+            Preview:ResetCamera()
+        end)
+
+        Items["StopButton"] = MakeButton(Items["Row"], "Stop", UDim2New(1 / 3, -4, 1, 0), nil, function()
+            Preview:StopAnimation()
+        end)
+
+        for _, Animation in Data.Animations or Data.animations or DefaultAnimations do
+            AddOption(Animation[1], Animation[2])
+        end
+
+        Preview.Items = Items
+        Preview:LoadModel()
+
+        return Preview
+    end
+
     Library.CreateSettingsPage = function(self, Window, KeybindList, Watermark)
         local SettingsPage = Window:Page({Icon = "rbxassetid://124693018107383"})
         
